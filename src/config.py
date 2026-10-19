@@ -80,16 +80,21 @@ BERT_WARMUP_RATIO = 0.1
 # Algorithm identification
 # --------------------------------------------------
 
+# Scope note: this project detects synonym-substitution steganography
+# only. An earlier design included a second task -- identifying WHICH
+# algorithm produced a given stego text -- across cover/synonym/VAE.
+# The VAE encoder was never implemented, so that task is out of scope
+# and its configuration has been removed rather than left advertising a
+# component that does not exist. Restoring it means implementing a
+# second encoder first.
 ALGORITHM_LABELS = {
     "cover": 0,
     "synonym": 1,
-    "vae": 2,
 }
 
 ALGORITHM_LABEL_NAMES = {
     0: "cover",
     1: "synonym",
-    2: "vae",
 }
 
 ALGORITHM_NUM_LABELS = len(ALGORITHM_LABELS)
