@@ -420,7 +420,21 @@ class SynonymSteganography:
 
         tokens = tokenize_words(text)
 
-        tagged_words = pos_tag(tokens)
+        # tokenize_words emits whitespace tokens so the text can be rebuilt
+        # exactly. Feeding those to pos_tag corrupts the tagger's context
+        # window, so tag only non-whitespace tokens and map tags back by index.
+        tagged_positions = [
+            i for i, token in enumerate(tokens) if token.strip()
+        ]
+
+        tagged_subset = pos_tag(
+            [tokens[i] for i in tagged_positions]
+        )
+
+        tags_by_index = {
+            position: tag
+            for position, (_, tag) in zip(tagged_positions, tagged_subset)
+        }
 
 
 
@@ -464,7 +478,7 @@ class SynonymSteganography:
 
             original_word = tokens[index]
 
-            tag = tagged_words[index][1]
+            tag = tags_by_index.get(index, "")
 
 
 
@@ -584,7 +598,7 @@ class SynonymSteganography:
 
                 "replacement_word": replacement,
 
-                "pos_tag": tagged_words[index][1],
+                "pos_tag": tags_by_index.get(index, ""),
 
                 "context_similarity": round(similarity, 4),
 

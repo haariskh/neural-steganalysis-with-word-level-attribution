@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+from src.config import MAX_LENGTH
+
 
 class IntegratedGradientsExplainer:
     """
@@ -23,11 +25,13 @@ class IntegratedGradientsExplainer:
         tokenizer: Any,
         device: torch.device,
         num_steps: int = 20,
+        max_length: int = MAX_LENGTH,
     ):
         self.model = model
         self.tokenizer = tokenizer
         self.device = device
         self.num_steps = num_steps
+        self.max_length = max_length
 
         self.model.eval()
 
@@ -88,7 +92,7 @@ class IntegratedGradientsExplainer:
             text,
             return_tensors="pt",
             truncation=True,
-            max_length=128,
+            max_length=self.max_length,
             padding="max_length",
         )
 

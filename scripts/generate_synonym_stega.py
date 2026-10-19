@@ -50,6 +50,9 @@ def generate_split(
             }
         )
 
+        # original_id makes the substitution ground truth joinable to the
+        # shuffled detector dataset; without it attribution cannot be scored.
+        metadata["original_id"] = int(row["original_id"])
         metadata_rows.append(metadata)
 
     output_file.parent.mkdir(parents=True, exist_ok=True)

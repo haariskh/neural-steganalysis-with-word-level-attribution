@@ -12,7 +12,12 @@ import pandas as pd
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-from src.config import CHECKPOINT_DIR, EXPLANATION_DIR, PROCESSED_DATA_DIR
+from src.config import (
+    CHECKPOINT_DIR,
+    EXPLANATION_DIR,
+    MAX_LENGTH,
+    PROCESSED_DATA_DIR,
+)
 
 
 def normalize_word(value):
@@ -183,7 +188,7 @@ def main():
                 return_tensors="pt",
                 padding=True,
                 truncation=True,
-                max_length=128,
+                max_length=MAX_LENGTH,
             )
             inputs = {k: v.to(device) for k, v in inputs.items()}
 

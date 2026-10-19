@@ -21,6 +21,7 @@ from transformers import (
 from src.config import (
     CHECKPOINT_DIR,
     EXPLANATION_DIR,
+    MAX_LENGTH,
     PROCESSED_DATA_DIR,
 )
 from src.explainability.integrated_gradients import (
@@ -146,7 +147,7 @@ def main():
                 return_tensors="pt",
                 truncation=True,
                 padding=True,
-                max_length=128,
+                max_length=MAX_LENGTH,
             )
             inputs = {
                 key: value.to(device)

@@ -14,12 +14,13 @@ from sklearn.metrics import (
     classification_report,
 )
 
+from src.config import MAX_LENGTH
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_FILE = PROJECT_ROOT / "data" / "processed" / "test_binary_detector.csv"
 MODEL_DIR = PROJECT_ROOT / "outputs" / "checkpoints" / "bert_detector"
 REPORT_DIR = PROJECT_ROOT / "outputs" / "reports"
 
-MAX_LENGTH = 128
 BATCH_SIZE = 4
 
 

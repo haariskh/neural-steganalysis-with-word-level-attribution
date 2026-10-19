@@ -33,9 +33,9 @@ REPORT_DIR = PROJECT_ROOT / "outputs" / "reports"
 
 MODEL_NAME = "bert-base-uncased"
 
-#VARY THIS, MAKE A TABLE
-
-MAX_LENGTH = 256
+# Sequence length is defined once in src/config.py so that training,
+# evaluation and all explainers tokenize identically. Vary it there.
+from src.config import MAX_LENGTH
 BATCH_SIZE = 2
 GRADIENT_ACCUMULATION_STEPS = 8 #bw 4 and six
 LEARNING_RATE = 2e-5
@@ -73,7 +73,7 @@ class SteganalysisDataset(Dataset):
         self,
         dataframe: pd.DataFrame,
         tokenizer,
-        max_length: int = 128,
+        max_length: int = MAX_LENGTH,
     ):
         self.reviews = dataframe["review"].astype(str).tolist()
         self.labels = dataframe["is_stego"].astype(int).tolist()
