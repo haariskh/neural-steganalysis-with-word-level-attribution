@@ -28,7 +28,12 @@ from src.models.bert_detector import BertSteganalysisDetector
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 DATA_DIR = PROJECT_ROOT / "data" / "processed"
-CHECKPOINT_DIR = PROJECT_ROOT / "outputs" / "checkpoints" / "bert_detector"
+# A smoke test must never overwrite real artifacts. Both paths below are
+# bases; main() appends a "_smoke" suffix when --smoke-test is passed, so a
+# pipeline check cannot clobber a trained checkpoint or its report.
+CHECKPOINT_DIR_BASE = (
+    PROJECT_ROOT / "outputs" / "checkpoints" / "bert_detector"
+)
 REPORT_DIR = PROJECT_ROOT / "outputs" / "reports"
 
 MODEL_NAME = "bert-base-uncased"
@@ -335,6 +340,22 @@ def main():
 
     args = parser.parse_args()
 
+    # Smoke-test artifacts are written beside the real ones, never over them.
+    if args.smoke_test:
+        checkpoint_dir = CHECKPOINT_DIR_BASE.with_name(
+            CHECKPOINT_DIR_BASE.name + "_smoke"
+        )
+        report_name = "bert_detector_report_smoke.json"
+        print(
+            "\nSMOKE TEST: training on a small subset. Metrics from this "
+            "run are not meaningful.\n"
+            f"Artifacts go to {checkpoint_dir} and {report_name}; the real "
+            "checkpoint and report are left untouched."
+        )
+    else:
+        checkpoint_dir = CHECKPOINT_DIR_BASE
+        report_name = "bert_detector_report.json"
+
     set_seed(RANDOM_SEED)
 
     device = torch.device(
@@ -487,21 +508,21 @@ def main():
 
             best_f1 = validation_metrics["f1"]
 
-            CHECKPOINT_DIR.mkdir(
+            checkpoint_dir.mkdir(
                 parents=True,
                 exist_ok=True,
             )
 
             model.model.save_pretrained(
-                CHECKPOINT_DIR
+                checkpoint_dir
             )
 
             tokenizer.save_pretrained(
-                CHECKPOINT_DIR
+                checkpoint_dir
             )
 
             print(
-                f"\nBest model saved to: {CHECKPOINT_DIR}"
+                f"\nBest model saved to: {checkpoint_dir}"
             )
 
     print("\nLoading best model for final evaluation...")
@@ -509,7 +530,7 @@ def main():
     from transformers import AutoModelForSequenceClassification
 
     model.model = AutoModelForSequenceClassification.from_pretrained(
-        CHECKPOINT_DIR,
+        checkpoint_dir,
         num_labels=2,
     )
 
@@ -542,7 +563,7 @@ def main():
         "test_metrics": test_metrics,
     }
 
-    report_path = REPORT_DIR / "bert_detector_report.json"
+    report_path = REPORT_DIR / report_name
 
     with open(
         report_path,
