@@ -142,6 +142,15 @@ def select_threshold(
     Call this on the VALIDATION split only, then pass the returned
     threshold to compute_metrics on the test split.
 
+    Implemented as a single vectorised sweep: scores are sorted once and
+    the confusion matrix at every candidate threshold is derived from
+    cumulative sums. A naive loop calling a metric function per candidate
+    is O(candidates x samples) and takes minutes on a split of this size.
+
+    `n_grid` is accepted for backward compatibility and ignored: sweeping
+    the observed scores evaluates every threshold that can change a
+    prediction, so a uniform grid adds nothing.
+
     Returns:
         (threshold, criterion_value_at_that_threshold)
     """
@@ -154,61 +163,79 @@ def select_threshold(
     y_true_array = np.asarray(y_true, dtype=int)
     y_score_array = np.asarray(y_score, dtype=float)
 
-    # Candidate thresholds: observed scores plus a uniform grid, so that
-    # the optimum is found even when scores cluster tightly.
-    candidates = np.unique(
-        np.concatenate(
-            [
-                y_score_array,
-                np.linspace(0.0, 1.0, n_grid),
-            ]
-        )
-    )
+    if y_true_array.shape != y_score_array.shape:
+        raise ValueError("y_true and y_score must have the same length.")
 
-    best_threshold = 0.5
-    best_value = -np.inf
+    if y_true_array.size == 0:
+        raise ValueError("Cannot select a threshold on an empty set.")
 
-    for threshold in candidates:
-        y_prediction = (y_score_array >= threshold).astype(int)
+    n_positive = int(y_true_array.sum())
+    n_negative = int(y_true_array.size - n_positive)
 
-        if criterion == "balanced_accuracy":
-            value = balanced_accuracy_score(y_true_array, y_prediction)
+    # Descending score order: at a threshold just at scores[i], exactly
+    # the first i+1 samples are predicted positive.
+    order = np.argsort(-y_score_array, kind="mergesort")
+    sorted_scores = y_score_array[order]
+    sorted_labels = y_true_array[order]
 
-        elif criterion == "accuracy":
-            value = accuracy_score(y_true_array, y_prediction)
+    true_positive = np.cumsum(sorted_labels)
+    predicted_positive = np.arange(1, y_true_array.size + 1)
+    false_positive = predicted_positive - true_positive
+
+    # Prepend the "predict nothing positive" operating point.
+    true_positive = np.concatenate([[0], true_positive])
+    false_positive = np.concatenate([[0], false_positive])
+
+    false_negative = n_positive - true_positive
+    true_negative = n_negative - false_positive
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        if criterion == "accuracy":
+            value = (true_positive + true_negative) / y_true_array.size
+
+        elif criterion == "balanced_accuracy":
+            sensitivity = np.divide(
+                true_positive, n_positive,
+                out=np.zeros_like(true_positive, dtype=float),
+                where=n_positive > 0,
+            )
+            specificity = np.divide(
+                true_negative, n_negative,
+                out=np.zeros_like(true_negative, dtype=float),
+                where=n_negative > 0,
+            )
+            value = (sensitivity + specificity) / 2.0
 
         elif criterion == "f1":
-            _, _, value, _ = precision_recall_fscore_support(
-                y_true_array,
-                y_prediction,
-                average="binary",
-                zero_division=0,
+            denominator = 2 * true_positive + false_positive + false_negative
+            value = np.divide(
+                2 * true_positive, denominator,
+                out=np.zeros(denominator.shape, dtype=float),
+                where=denominator > 0,
             )
 
-        else:  # youden = sensitivity + specificity - 1
-            matrix = confusion_matrix(
-                y_true_array, y_prediction, labels=[0, 1]
+        else:  # youden
+            sensitivity = np.divide(
+                true_positive, n_positive,
+                out=np.zeros_like(true_positive, dtype=float),
+                where=n_positive > 0,
             )
-            true_negative, false_positive, false_negative, true_positive = (
-                matrix.ravel()
-            )
-            sensitivity = (
-                true_positive / (true_positive + false_negative)
-                if (true_positive + false_negative) > 0
-                else 0.0
-            )
-            specificity = (
-                true_negative / (true_negative + false_positive)
-                if (true_negative + false_positive) > 0
-                else 0.0
+            specificity = np.divide(
+                true_negative, n_negative,
+                out=np.zeros_like(true_negative, dtype=float),
+                where=n_negative > 0,
             )
             value = sensitivity + specificity - 1.0
 
-        if value > best_value:
-            best_value = float(value)
-            best_threshold = float(threshold)
+    best_index = int(np.argmax(value))
 
-    return best_threshold, best_value
+    # Index 0 is the empty-positive point: a threshold above every score.
+    if best_index == 0:
+        threshold = float(np.nextafter(sorted_scores[0], np.inf))
+    else:
+        threshold = float(sorted_scores[best_index - 1])
+
+    return threshold, float(value[best_index])
 
 
 def bootstrap_confidence_interval(
