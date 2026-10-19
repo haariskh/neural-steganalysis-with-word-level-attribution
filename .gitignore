@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+data/
+outputs/
+checkpoints/
+*.csv
+*.pt
+*.bin
