@@ -36,9 +36,25 @@ TEST_RATIO = 0.15
 # Text processing
 # --------------------------------------------------
 
-MAX_LENGTH = 256
+# Single source of truth for sequence length: training, evaluation and
+# every explainer read this value, so they cannot drift apart.
+#
+# 512 (BERT's architectural maximum) rather than 256 because IMDB reviews
+# average roughly 230 words, which is ~300 word-piece tokens, so a 256-token
+# window truncates over half the corpus. Substitutions past the cut-off are
+# invisible to the model: the stego sample becomes byte-identical to its
+# cover within the visible window while still carrying label 1. That is
+# irreducible label noise, and it caps achievable ROC-AUC.
+#
+# Cost: roughly 2x the compute and activation memory of 256. If training
+# runs out of VRAM, drop this to 256 and record the value alongside the
+# result -- it is an experimental variable, not a free parameter.
+MAX_LENGTH = 512
 
-# Maximum number of substitutions per review
+# Maximum number of substitutions per review.
+# This sets the embedding rate together with review length, and is the
+# dominant factor in how detectable the stego text is. Report it with
+# every accuracy figure; accuracy without an embedding rate is unreadable.
 MAX_SYNONYM_SUBSTITUTIONS = 8
 
 # Minimum number of words in a review before modification
