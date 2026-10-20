@@ -48,7 +48,16 @@ CLASS_NAMES = ["cover", "synonym-stego"]
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", default="test")
-    parser.add_argument("--limit", type=int, default=100)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help=(
+            "TOTAL rows that should end up explained, counting rows "
+            "already done in an earlier run. --limit 150 with 60 already "
+            "present generates 90 more, not 150 more."
+        ),
+    )
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--ig-steps", type=int, default=20)
     parser.add_argument("--lime-samples", type=int, default=300)
@@ -157,13 +166,17 @@ def main() -> None:
             continue
         candidates.append(int(index))
 
-    done = 0
-    skipped = 0
+    done = 0          # newly generated in this run
+    already = 0       # complete from an earlier run
+    skipped = 0       # filtered out
     failed = []
     started = time.time()
 
     for index in candidates:
-        if done >= args.limit:
+        # --limit is a TARGET TOTAL, so rows carried over from an earlier
+        # run count toward it. Otherwise resuming a batch silently
+        # generates another full --limit on top of what exists.
+        if done + already >= args.limit:
             break
 
         paths = {
@@ -172,7 +185,7 @@ def main() -> None:
         }
 
         if not args.overwrite and all(p.exists() for p in paths.values()):
-            skipped += 1
+            already += 1
             continue
 
         row = dataframe.iloc[index]
@@ -269,11 +282,11 @@ def main() -> None:
 
             elapsed = time.time() - started
             per_row = elapsed / done
-            remaining = min(args.limit, len(candidates)) - done
+            target = min(args.limit, len(candidates))
+            remaining = max(target - (done + already), 0)
             print(
-                f"[{done}/{min(args.limit, len(candidates))}] "
-                f"row {index} | {per_row:.1f}s/row | "
-                f"~{per_row * remaining / 60:.1f} min left",
+                f"[{done + already}/{target}] row {index} | "
+                f"{per_row:.1f}s/row | ~{per_row * remaining / 60:.1f} min left",
                 flush=True,
             )
 
@@ -285,8 +298,14 @@ def main() -> None:
                 if path.exists():
                     path.unlink()
 
-    print(f"\nExplained {done} rows in {(time.time()-started)/60:.1f} min")
-    print(f"Skipped (already present or filtered): {skipped}")
+    print(
+        f"\nGenerated {done} new rows in "
+        f"{(time.time()-started)/60:.1f} min"
+    )
+    print(f"Already present from an earlier run: {already}")
+    print(f"Total now explained: {done + already}")
+    if skipped:
+        print(f"Filtered out (misclassified): {skipped}")
     if failed:
         print(f"Failed: {len(failed)}")
         for index, error in failed[:5]:
